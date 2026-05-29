@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 1
+    path: Assets/OpenScene/Scene/OpenScene.unity
+    guid: f8400f56a593bdc4f91be77bff883ab1
+  - enabled: 1
+    path: Assets/Project_1/Scene/GameDesign1_MutiPlayer.unity
+    guid: 2917959b15cc93f4e9f14d02fc604d69
+  - enabled: 1
+    path: Assets/Project_2.2/Scene/AmongCrowd.unity
+    guid: 157f0b50acdb1a844a792644a4b2084f
+  m_configObjects:
+    com.unity.input.settings: {fileID: 11400000, guid: 9e7be553448fa2546aea5752021cbcf7, type: 2}
+    com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 5ec6de174a1bab0419ee920d6e8ede3d, type: 3}
+  m_UseUCBPForAssetBundles: 0
