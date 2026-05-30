@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using UnityEngine.UI;
-using TMPro; // [VI] Thêm thư viện TextMeshPro / [EN] Add TextMeshPro library
+using TMPro;
+using UnityEngine.InputSystem; // [VI] Dùng để lấy tọa độ chuột / [EN] Used to get mouse coordinates
 
 namespace Portfolio.TriageManagement
 {
@@ -8,18 +9,23 @@ namespace Portfolio.TriageManagement
     {
         public static Triage_SymptomUI Instance { get; private set; }
 
-        [Header("UI References")]
+        [Header("Main Panel Settings")]
         [SerializeField] private GameObject uiPanel;
+        [SerializeField] private Vector2 offset = new Vector2(20f, -20f); // [VI] Lệch ra khỏi con trỏ / [EN] Offset from cursor
+        private RectTransform rectTransform;
 
-        [Header("Sliders")]
+        [Header("Patient UI Elements")]
+        [SerializeField] private GameObject patientContentContainer; // [VI] Nhóm chứa các thanh Slider / [EN] Group containing Sliders
         [SerializeField] private Slider tempSlider;
         [SerializeField] private Slider hrSlider;
         [SerializeField] private Slider bpSlider;
+        [SerializeField] private TextMeshProUGUI tempText;
+        [SerializeField] private TextMeshProUGUI hrText;
+        [SerializeField] private TextMeshProUGUI bpText;
 
-        [Header("Text Displays (TextMeshPro)")]
-        [SerializeField] private TextMeshProUGUI tempText; // [VI] Số Nhiệt độ / [EN] Temperature Number
-        [SerializeField] private TextMeshProUGUI hrText;   // [VI] Số Nhịp tim / [EN] Heart Rate Number
-        [SerializeField] private TextMeshProUGUI bpText;   // [VI] Số Huyết áp / [EN] Blood Pressure Number
+        [Header("Drug UI Elements")]
+        [SerializeField] private GameObject drugContentContainer; // [VI] Nhóm chứa Text thông tin thuốc / [EN] Group containing Drug text
+        [SerializeField] private TextMeshProUGUI drugInfoText;
 
         [Header("Colors")]
         [SerializeField] private Color normalTextColor = Color.white;
@@ -33,17 +39,92 @@ namespace Portfolio.TriageManagement
             if (Instance == null) { Instance = this; }
             else { Destroy(gameObject); }
 
+            rectTransform = uiPanel.GetComponent<RectTransform>();
             HideUI();
         }
 
-        public void ShowUI(Triage_PatientBiology patient)
+        private void Update()
+        {
+            // [VI] LIÊN TỤC ĐI THEO CON TRỎ CHUỘT NẾU PANEL ĐANG BẬT
+            // [EN] CONTINUOUSLY FOLLOW MOUSE CURSOR IF PANEL IS ACTIVE
+            if (uiPanel.activeSelf)
+            {
+                Vector2 mousePos = Mouse.current.position.ReadValue();
+                rectTransform.position = mousePos + offset;
+            }
+
+            // [VI] Cập nhật thông số bệnh nhân (nếu đang chỉ vào bệnh nhân)
+            // [EN] Update patient stats (if pointing at a patient)
+            if (currentPatient != null && patientContentContainer.activeSelf)
+            {
+                tempSlider.value = currentPatient.temperature.currentValue;
+                hrSlider.value = currentPatient.heartRate.currentValue;
+                bpSlider.value = currentPatient.bloodPressure.currentValue;
+
+                UpdateStatText(tempText, currentPatient.temperature, "°C", false);
+                UpdateStatText(hrText, currentPatient.heartRate, " bpm", true);
+                UpdateStatText(bpText, currentPatient.bloodPressure, " mmHg", true);
+            }
+        }
+
+        // ==========================================
+        // [VI] HÀM HIỂN THỊ DÀNH CHO BỆNH NHÂN
+        // [EN] SHOW FUNCTION FOR PATIENTS
+        // ==========================================
+        public void ShowPatientUI(Triage_PatientBiology patient)
         {
             currentPatient = patient;
+
+            // [VI] Bật nội dung bệnh nhân, Tắt nội dung thuốc
+            // [EN] Enable patient content, Disable drug content
+            patientContentContainer.SetActive(true);
+            drugContentContainer.SetActive(false);
+
             uiPanel.SetActive(true);
 
             SetupSlider(tempSlider, patient.temperature);
             SetupSlider(hrSlider, patient.heartRate);
             SetupSlider(bpSlider, patient.bloodPressure);
+
+            // [VI] Cập nhật ngay lập tức vị trí để không bị giật khung hình đầu
+            // [EN] Immediately update position to avoid first-frame stutter
+            rectTransform.position = Mouse.current.position.ReadValue() + offset;
+        }
+
+        // ==========================================
+        // [VI] HÀM HIỂN THỊ DÀNH CHO THUỐC
+        // [EN] SHOW FUNCTION FOR DRUGS
+        // ==========================================
+        public void ShowDrugUI(string drugName, float cost, string effectDescription)
+        {
+            currentPatient = null; // [VI] Không dính dáng đến bệnh nhân / [EN] Disconnect from patient
+
+            // [VI] Tắt nội dung bệnh nhân, Bật nội dung thuốc
+            // [EN] Disable patient content, Enable drug content
+            patientContentContainer.SetActive(false);
+            drugContentContainer.SetActive(true);
+
+            // [VI] Ghi thông tin vào Text
+            // [EN] Write info into Text
+            drugInfoText.text = $"<b>{drugName}</b>\nCost: ${cost}\nEffect: {effectDescription}";
+
+            uiPanel.SetActive(true);
+
+            rectTransform.position = Mouse.current.position.ReadValue() + offset;
+        }
+
+        public void ShowStaffUI(float wage, float errorChance)
+        {
+            currentPatient = null;
+
+            patientContentContainer.SetActive(false);
+            drugContentContainer.SetActive(true); // [VI] Tận dụng lại khung text của thuốc cho nhanh / [EN] Reuse drug text frame for speed
+
+            float errorPercent = errorChance * 100f;
+            drugInfoText.text = $"<b>Nurse/Assistant</b>\nWage: ${wage}/10s\nFatal Error Rate: {errorPercent}%";
+
+            uiPanel.SetActive(true);
+            rectTransform.position = Mouse.current.position.ReadValue() + offset;
         }
 
         public void HideUI()
@@ -54,56 +135,25 @@ namespace Portfolio.TriageManagement
 
         private void SetupSlider(Slider slider, VitalSign sign)
         {
-            // [VI] Đặt giới hạn Slider / [EN] Set Slider limits
             slider.minValue = sign.minDeathThreshold - 5f;
             slider.maxValue = sign.maxDeathThreshold + 5f;
         }
 
-        private void Update()
-        {
-            if (currentPatient != null && uiPanel.activeSelf)
-            {
-                // [VI] Cập nhật thanh Slider / [EN] Update Sliders
-                tempSlider.value = currentPatient.temperature.currentValue;
-                hrSlider.value = currentPatient.heartRate.currentValue;
-                bpSlider.value = currentPatient.bloodPressure.currentValue;
-
-                // [VI] Cập nhật con số và làm chớp đỏ nếu nguy hiểm / [EN] Update numbers and flash red if critical
-                UpdateStatText(tempText, currentPatient.temperature, "°C", false);
-                UpdateStatText(hrText, currentPatient.heartRate, " bpm", true);
-                UpdateStatText(bpText, currentPatient.bloodPressure, " mmHg", true);
-            }
-        }
-
-        // [VI] Hàm hỗ trợ để format số và đổi màu / [EN] Helper function to format numbers and change colors
         private void UpdateStatText(TextMeshProUGUI textUI, VitalSign sign, string unit, bool isInteger)
         {
             if (textUI == null) return;
 
-            // [VI] Định dạng hiển thị: Nhiệt độ có 1 chữ số thập phân (37.5), Nhịp tim/Huyết áp là số nguyên (120)
-            // [EN] Display format: Temp has 1 decimal (37.5), HR/BP are integers (120)
-            if (isInteger)
-            {
-                textUI.text = Mathf.RoundToInt(sign.currentValue).ToString() + unit;
-            }
-            else
-            {
-                textUI.text = sign.currentValue.ToString("F1") + unit;
-            }
+            if (isInteger) textUI.text = Mathf.RoundToInt(sign.currentValue).ToString() + unit;
+            else textUI.text = sign.currentValue.ToString("F1") + unit;
 
-            // [VI] Kiểm tra xem chỉ số này có đang vượt ngưỡng chết không
-            // [EN] Check if this specific stat is crossing the death threshold
             bool isFatal = sign.currentValue >= sign.maxDeathThreshold || sign.currentValue <= sign.minDeathThreshold;
-
             if (isFatal)
             {
-                // [VI] Chớp tắt giữa Trắng và Đỏ / [EN] Flash between White and Red
                 float lerp = Mathf.PingPong(Time.time * flashSpeed, 1f);
                 textUI.color = Color.Lerp(normalTextColor, criticalTextColor, lerp);
             }
             else
             {
-                // [VI] Màu bình thường / [EN] Normal color
                 textUI.color = normalTextColor;
             }
         }

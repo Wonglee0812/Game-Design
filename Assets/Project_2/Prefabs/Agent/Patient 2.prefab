@@ -17,7 +17,7 @@ GameObject:
   - component: {fileID: 1838632341037197884}
   - component: {fileID: 6139780065136493349}
   m_Layer: 10
-  m_Name: Patient
+  m_Name: Patient 2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -130,7 +130,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 668a9ac1fa127e54382356959082f979, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Portfolio.TriageManagement.Triage_PatientBiology
-  currentDisease: {fileID: 11400000, guid: 632d585f0b29ce3448b1b5c18749e509, type: 2}
+  currentDisease: {fileID: 11400000, guid: 334340c295ae43644b3859db1c6920b5, type: 2}
   temperature:
     currentValue: 36.5
     normalValue: 36.5
@@ -146,8 +146,11 @@ MonoBehaviour:
     normalValue: 120
     maxDeathThreshold: 180
     minDeathThreshold: 70
+  reward: 20
+  reputation: 5
+  punishment: 10
   recoveryRate: 0.1
-  deathGracePeriod: 3
+  deathGracePeriod: 5
 --- !u!195 &6912003502464653363
 NavMeshAgent:
   m_ObjectHideFlags: 0
@@ -186,6 +189,7 @@ MonoBehaviour:
   waitingZone: {fileID: 0}
   exitPoint: {fileID: 0}
   wanderInterval: 3
+  isBeingTreated: 0
 --- !u!54 &6139780065136493349
 Rigidbody:
   m_ObjectHideFlags: 0

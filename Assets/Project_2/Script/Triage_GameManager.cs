@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
-using TMPro;
+using UnityEngine.UI; // [VI] Bắt buộc phải có để dùng Slider / [EN] Required to use Slider
+using TMPro; // [VI] Bắt buộc phải có để dùng TextMeshPro / [EN] Required to use TextMeshPro
 
 namespace Portfolio.TriageManagement
 {
@@ -19,10 +20,24 @@ namespace Portfolio.TriageManagement
         public float levelDuration = 120f; // [VI] 120 giây (2 phút) / [EN] 120 seconds (2 minutes)
         private float timeRemaining;
 
+        [Header("Resource UI Settings")]
+        [SerializeField] private float maxGold = 500f; // [VI] Giới hạn thanh Tiền / [EN] Gold slider limit
+        [SerializeField] private float maxReputation = 100f; // [VI] Giới hạn thanh Hảo cảm / [EN] Reputation slider limit
+
         [Header("UI References")]
-        public TextMeshProUGUI goldText;
-        public TextMeshProUGUI reputationText;
-        public TextMeshProUGUI timerText; // [VI] Text hiển thị Đồng hồ / [EN] Clock display Text
+        [SerializeField] private Slider goldSlider;
+        [SerializeField] private TextMeshProUGUI goldText;
+        [SerializeField] private Slider reputationSlider;
+        [SerializeField] private TextMeshProUGUI reputationText;
+        [SerializeField] private TextMeshProUGUI timerText;
+        private int staffCount = 0;
+        [Header("Staff Settings")]
+        public GameObject staffPrefab;
+        public Transform staffSpawnPoint;
+        public float hireCost = 50f;
+        public float wagePerInterval = 10f;
+        public float wageIntervalSeconds = 10f;
+
         public GameObject gameOverPanel;
         public GameObject winPanel; // [VI] Kéo UI Chiến Thắng vào đây / [EN] Drag Victory UI here
 
@@ -37,6 +52,24 @@ namespace Portfolio.TriageManagement
             timeRemaining = levelDuration;
         }
 
+        private void Start()
+        {
+            // [VI] Thiết lập giới hạn tối đa cho Slider khi bắt đầu game
+            // [EN] Set maximum limits for Sliders when the game starts
+            InvokeRepeating(nameof(PayStaffWages), wageIntervalSeconds, wageIntervalSeconds);
+            if (goldSlider != null) goldSlider.maxValue = maxGold;
+            if (reputationSlider != null) reputationSlider.maxValue = maxReputation;
+
+            UpdateResourceUI();
+        }
+        public void UpdateResourceUI()
+        {
+            if (goldSlider != null) goldSlider.value = currentGold;
+            if (goldText != null) goldText.text = $"${currentGold}";
+
+            if (reputationSlider != null) reputationSlider.value = currentReputation;
+            if (reputationText != null) reputationText.text = $"{currentReputation}/100";
+        }
         private void Update()
         {
             if (IsGameOver) return;
@@ -57,6 +90,7 @@ namespace Portfolio.TriageManagement
                 if (bonusGold > 0)
                 {
                     currentGold += bonusGold;
+                    UpdateResourceUI();
                 }
 
                 // [VI] Reset bộ đếm / [EN] Reset timer
@@ -88,12 +122,33 @@ namespace Portfolio.TriageManagement
                 timerText.text = string.Format("{0:00}:{1:00}", minutes, seconds);
             }
         }
+        public void HireStaffButton()
+        {
+            if (SpendGold(hireCost))
+            {
+                staffCount++;
+                Instantiate(staffPrefab, staffSpawnPoint.position, Quaternion.identity);
+            }
+        }
 
+        private void PayStaffWages() // <--- Hàm này được gọi bởi InvokeRepeating ở trên / This function is called by InvokeRepeating above
+        {
+            if (staffCount > 0)
+            {
+                float totalWage = wagePerInterval * staffCount;
+                if (!SpendGold(totalWage))
+                {
+                    currentGold = 0;
+                    UpdateResourceUI();
+                }
+            }
+        }
         public void OnPatientCured(int goldReward, int repReward)
         {
             if (IsGameOver) return;
             currentGold += goldReward;
             currentReputation = Mathf.Min(currentReputation + repReward, 100);
+            UpdateResourceUI();
         }
 
         public void OnPatientDied(int repPenalty)
@@ -102,6 +157,7 @@ namespace Portfolio.TriageManagement
             currentReputation -= repPenalty;
 
             if (currentReputation < 0) TriggerGameOver();
+            UpdateResourceUI();
         }
 
         public bool SpendGold(float amount)
@@ -109,6 +165,7 @@ namespace Portfolio.TriageManagement
             if (currentGold >= amount)
             {
                 currentGold -= amount;
+                UpdateResourceUI();
                 return true;
             }
             return false;

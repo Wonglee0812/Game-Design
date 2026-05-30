@@ -9,6 +9,7 @@ TagManager:
   - Grappleable
   - WaitingZone
   - ExitPoint
+  - Drug
   layers:
   - Default
   - TransparentFX
@@ -26,8 +27,8 @@ TagManager:
   - WaitingZone
   - Corpse
   - Metal
-  - 
-  - 
+  - Staff
+  - WorldButton
   - 
   - 
   - 

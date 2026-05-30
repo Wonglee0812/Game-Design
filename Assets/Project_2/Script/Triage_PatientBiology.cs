@@ -11,6 +11,7 @@ namespace Portfolio.TriageManagement
         public VitalSign temperature = new VitalSign { currentValue = 36.5f, normalValue = 36.5f, maxDeathThreshold = 41.0f, minDeathThreshold = 33.0f };
         public VitalSign heartRate = new VitalSign { currentValue = 80f, normalValue = 80f, maxDeathThreshold = 150f, minDeathThreshold = 40f };
         public VitalSign bloodPressure = new VitalSign { currentValue = 120f, normalValue = 120f, maxDeathThreshold = 180f, minDeathThreshold = 70f };
+        public int reward, reputation, punishment;
 
         [Header("Homeostasis & Death Rules")]
         public float recoveryRate = 0.1f;
@@ -30,7 +31,6 @@ namespace Portfolio.TriageManagement
         {
             isDiseaseActive = true;
         }
-
         private void Update()
         {
             // [VI] Chặn không cho trừ máu nếu bệnh chưa phát tác
@@ -96,7 +96,7 @@ namespace Portfolio.TriageManagement
             isDead = true;
 
             // [VI] Phạt 10 Hảo cảm khi có người chết / [EN] Deduct 10 Reputation on death
-            Triage_GameManager.Instance?.OnPatientDied(10);
+            Triage_GameManager.Instance?.OnPatientDied(punishment);
 
             GetComponent<Triage_PatientMovement>()?.BecomeCorpse();
         }
@@ -107,7 +107,7 @@ namespace Portfolio.TriageManagement
             isCured = true;
 
             // [VI] Thưởng 20 Vàng và 5 Hảo cảm / [EN] Reward 20 Gold and 5 Reputation
-            Triage_GameManager.Instance?.OnPatientCured(20, 5);
+            Triage_GameManager.Instance?.OnPatientCured(reward, reputation);
 
             GetComponent<Triage_PatientMovement>()?.GoToExit();
         }

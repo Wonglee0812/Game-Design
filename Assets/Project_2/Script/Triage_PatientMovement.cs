@@ -20,9 +20,8 @@ namespace Portfolio.TriageManagement
         private Rigidbody rb;
         private float timer;
 
-        // [VI] Biến kiểm tra xem người chơi có đang rọi chuột vào không
-        // [EN] Variable to check if the player is currently hovering the mouse
         private bool isPausedByPlayer = false;
+        public bool isBeingTreated = false;
 
         private void Awake()
         {
@@ -50,15 +49,19 @@ namespace Portfolio.TriageManagement
             }
             else if (currentState == MovementState.Leaving)
             {
+                // [VI] ÉP BUỘC ĐI VỀ CỬA: Luôn mở khóa và kiểm tra điểm đến liên tục
+                // [EN] FORCE GOING TO EXIT: Always unlock and continuously check destination
+                if (agent.isOnNavMesh && exitPoint != null)
+                {
+                    agent.isStopped = false; // [VI] Đảm bảo không bị dính phanh / [EN] Ensure no brake is stuck
+                }
                 CheckExitReached();
             }
         }
 
         private void HandleWandering()
         {
-            // [VI] NẾU ĐANG BỊ NGƯỜI CHƠI HOVER -> KHÔNG LÀM GÌ CẢ (ĐỨNG IM)
-            // [EN] IF HOVERED BY PLAYER -> DO NOTHING (STAND STILL)
-            if (!agent.isOnNavMesh || isPausedByPlayer) return;
+            if (!agent.isOnNavMesh || isPausedByPlayer || isBeingTreated) return;
 
             if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
             {
@@ -81,63 +84,63 @@ namespace Portfolio.TriageManagement
             );
         }
 
-        // --- TƯƠNG TÁC VỚI CHUỘT (HOVER TO STOP) ---
-        // --- MOUSE INTERACTION (HOVER TO STOP) ---
+        // --- TƯƠNG TÁC CHUỘT ĐÃ ĐƯỢC BẢO VỆ CHẶT CHẼ HƠN ---
+        // --- MOUSE INTERACTION IS NOW STRICTLY PROTECTED ---
 
         private void OnMouseEnter()
         {
-            if (currentState == MovementState.Dead) return;
-            isPausedByPlayer = true;
-            if (agent.isOnNavMesh) agent.isStopped = true; // [VI] Phanh gấp / [EN] Hard brake
+            // [VI] Chỉ cho phép ngó thông tin nếu bệnh nhân đang ở trạng thái Chờ
+            // [EN] Only allow peeking at info if the patient is in the Waiting state
+            if (currentState != MovementState.Waiting) return;
 
-            // [VI] Bật UI Sinh hiệu để người chơi xem bệnh
-            // [EN] Turn on Vitals UI so the player can check the disease
-            Triage_SymptomUI.Instance?.ShowUI(GetComponent<Triage_PatientBiology>());
+            isPausedByPlayer = true;
+            if (agent.isOnNavMesh) agent.isStopped = true;
         }
 
         private void OnMouseExit()
         {
-            if (currentState == MovementState.Dead) return;
+            if (currentState != MovementState.Waiting) return;
+
             isPausedByPlayer = false;
-            if (agent.isOnNavMesh) agent.isStopped = false; // [VI] Cho đi tiếp / [EN] Allow moving again
 
-            // [VI] Tắt UI Sinh hiệu khi người chơi quay ra lấy thuốc
-            // [EN] Turn off Vitals UI when player turns away to grab medicine
-            Triage_SymptomUI.Instance?.HideUI();
+            // [VI] QUAN TRỌNG: Nếu đang bị bác sĩ khám thì rút chuột ra vẫn phải đứng im!
+            // [EN] IMPORTANT: If being examined by a doctor, withdrawing the mouse must still keep them stopped!
+            if (agent.isOnNavMesh && !isBeingTreated)
+            {
+                agent.isStopped = false;
+            }
         }
-
-        // --- TƯƠNG TÁC VỚI MÔI TRƯỜNG (START DISEASE) ---
-        // --- ENVIRONMENT INTERACTION (START DISEASE) ---
 
         private void OnTriggerEnter(Collider other)
         {
-            // [VI] Khi cơ thể chạm vào khu vực có Tag là "WaitingZone"
-            // [EN] When the body touches the area Tagged "WaitingZone"
             if (other.CompareTag("WaitingZone") && currentState == MovementState.Waiting)
             {
                 GetComponent<Triage_PatientBiology>()?.StartDisease();
             }
         }
 
-        // --- PUBLIC FUNCTIONS CALLED BY BIOLOGY SCRIPT ---
-
         public void GoToExit()
         {
             currentState = MovementState.Leaving;
             isPausedByPlayer = false;
+            isBeingTreated = false;
+
             if (agent.isOnNavMesh && exitPoint != null)
             {
                 agent.isStopped = false;
-                agent.SetDestination(exitPoint.position);
                 agent.speed += 2f;
+                agent.SetDestination(exitPoint.position);
             }
         }
 
         private void CheckExitReached()
         {
-            if (!agent.pathPending && agent.remainingDistance <= 1.5f)
+            if (exitPoint != null)
             {
-                Destroy(gameObject);
+                if (Vector3.Distance(transform.position, exitPoint.position) <= 2f)
+                {
+                    Destroy(gameObject);
+                }
             }
         }
 
@@ -156,10 +159,7 @@ namespace Portfolio.TriageManagement
             rb.AddForce(pushForce, ForceMode.Impulse);
             rb.AddTorque(new Vector3(Random.Range(-50f, 50f), 0, Random.Range(-50f, 50f)));
 
-            // [VI] ĐỔI THÀNH LAYER "Corpse" ĐỂ CHUỘT DỄ NHẶT LÊN
-            // [EN] CHANGE TO "Corpse" LAYER FOR EASY MOUSE PICKUP
             gameObject.layer = LayerMask.NameToLayer("Corpse");
-
             Triage_SymptomUI.Instance?.HideUI();
         }
     }
