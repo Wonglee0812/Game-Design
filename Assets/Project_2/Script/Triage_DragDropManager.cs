@@ -13,19 +13,22 @@ namespace Portfolio.TriageManagement
         [Header("Layers")]
         [SerializeField] private LayerMask patientLayer;
         [SerializeField] private LayerMask drugLayer;
-        [SerializeField] private LayerMask corpseLayer; // [VI] Thêm Layer cho Xác chết / [EN] Add Layer for Corpses
-        [SerializeField] private LayerMask staffLayer; // [VI] Thêm Layer này trên đầu / [EN] Add this Layer at the top
+        [SerializeField] private LayerMask corpseLayer;
+        [SerializeField] private LayerMask staffLayer;
         [SerializeField] private LayerMask buttonLayer;
-        private Triage_StaffController selectedStaff = null; // [VI] Nhân viên đang được chọn / [EN] Currently selected staff
+        private Triage_StaffController selectedStaff = null;
 
         private UnityEngine.Camera mainCam;
         private Plane dragPlane;
 
-        // [VI] Quản lý Thuốc / [EN] Drug Management
         private Triage_DrugItem draggedDrug = null;
-
-        // [VI] Quản lý Xác chết / [EN] Corpse Management
         private Rigidbody draggedCorpse = null;
+
+        // ==========================================
+        // [VI] Biến Transform để kiểm tra chống spam âm thanh
+        // [EN] Transform variable to check and prevent audio spam
+        // ==========================================
+        private Transform currentHoverTarget = null;
 
         private void Awake()
         {
@@ -53,32 +56,28 @@ namespace Portfolio.TriageManagement
             }
         }
 
-        // [VI] Trong script Triage_DragDropManager.cs / [EN] In script Triage_DragDropManager.cs
         private void TryGrabObject()
         {
             Ray ray = mainCam.ScreenPointToRay(Mouse.current.position.ReadValue());
             RaycastHit hit;
 
-            // ==========================================
-            // [VI] 2. THÊM ĐOẠN CHECK NÚT BẤM VÀO NGAY ĐẦU HÀM
-            // [EN] 2. ADD THE BUTTON CHECK RIGHT AT THE START OF THE FUNCTION
-            // ==========================================
             if (Physics.Raycast(ray, out hit, 100f, buttonLayer))
             {
-                Triage_WorldButton btn = hit.collider.GetComponent<Triage_WorldButton>();
+                Triage_WorldButton btn = hit.collider.GetComponentInParent<Triage_WorldButton>();
                 if (btn != null)
                 {
+                    if (AudioManager.Instance != null) AudioManager.Instance.Play("grab");
                     btn.PressButton();
-                    return; // [VI] Đã bấm nút thì dừng, không cầm nắm đồ vật nữa / [EN] Stopped to press button, don't grab objects
+                    return;
                 }
             }
 
-            // [VI] 1. CLICK CHỌN NHÂN VIÊN / [EN] 1. CLICK TO SELECT STAFF
             if (Physics.Raycast(ray, out hit, 100f, staffLayer))
             {
-                Triage_StaffController staff = hit.collider.GetComponent<Triage_StaffController>();
+                Triage_StaffController staff = hit.collider.GetComponentInParent<Triage_StaffController>();
                 if (staff != null && staff.isAvailable)
                 {
+                    if (AudioManager.Instance != null) AudioManager.Instance.Play("grab");
                     if (selectedStaff != null) selectedStaff.SetSelected(false);
 
                     selectedStaff = staff;
@@ -87,21 +86,18 @@ namespace Portfolio.TriageManagement
                 return;
             }
 
-            // [VI] 2. NẾU ĐANG CHỌN NHÂN VIÊN MÀ CLICK VÀO BỆNH NHÂN -> RA LỆNH CHỮA
-            // [EN] 2. IF STAFF IS SELECTED AND CLICKED PATIENT -> COMMAND TO TREAT
             if (selectedStaff != null && Physics.Raycast(ray, out hit, 100f, patientLayer))
             {
-                Triage_PatientBiology patient = hit.collider.GetComponent<Triage_PatientBiology>();
+                Triage_PatientBiology patient = hit.collider.GetComponentInParent<Triage_PatientBiology>();
                 if (patient != null)
                 {
+                    if (AudioManager.Instance != null) AudioManager.Instance.Play("grab");
                     selectedStaff.CommandToTreat(patient);
-                    selectedStaff = null; // [VI] Xóa lựa chọn sau khi ra lệnh / [EN] Clear selection after commanding
+                    selectedStaff = null;
                     return;
                 }
             }
 
-            // [VI] 3. Bỏ chọn nhân viên nếu click ra ngoài (Nhưng không trúng Thuốc/Xác chết)
-            // [EN] 3. Deselect staff if clicking outside (But not hitting Drugs/Corpses)
             if (selectedStaff != null)
             {
                 selectedStaff.SetSelected(false);
@@ -110,23 +106,30 @@ namespace Portfolio.TriageManagement
 
             if (Physics.Raycast(ray, out RaycastHit drugHit, 100f, drugLayer))
             {
-                Triage_DrugItem drugDispenser = drugHit.collider.GetComponent<Triage_DrugItem>();
+                Triage_DrugItem drugDispenser = drugHit.collider.GetComponentInParent<Triage_DrugItem>();
                 if (drugDispenser != null)
                 {
-                    // [VI] Lấy thuốc thoải mái, chưa trừ tiền vội
-                    // [EN] Grab the drug freely, don't deduct money yet
+                    if (AudioManager.Instance != null) AudioManager.Instance.Play("grab");
                     draggedDrug = Instantiate(drugDispenser, drugDispenser.transform.position, drugDispenser.transform.rotation);
-                    SetupDragPlane(drugDispenser.transform.position.y);
+                    draggedDrug.transform.localScale = new Vector3(2.5f, 2.5f, 2.5f);
 
-                    return; // [VI] Kết thúc hàm tại đây / [EN] End function here
+                    Rigidbody drugRb = draggedDrug.GetComponentInChildren<Rigidbody>();
+                    if (drugRb != null) drugRb.isKinematic = true;
+
+                    Collider[] drugCols = draggedDrug.GetComponentsInChildren<Collider>();
+                    foreach (Collider c in drugCols) c.enabled = false;
+
+                    SetupDragPlane(drugDispenser.transform.position.y);
+                    return;
                 }
             }
 
             if (Physics.Raycast(ray, out RaycastHit corpseHit, 100f, corpseLayer))
             {
-                draggedCorpse = corpseHit.collider.GetComponent<Rigidbody>();
+                draggedCorpse = corpseHit.collider.GetComponentInParent<Rigidbody>();
                 if (draggedCorpse != null)
                 {
+                    if (AudioManager.Instance != null) AudioManager.Instance.Play("grab");
                     draggedCorpse.isKinematic = true;
                     SetupDragPlane(draggedCorpse.transform.position.y);
                 }
@@ -145,7 +148,6 @@ namespace Portfolio.TriageManagement
             {
                 Vector3 targetPoint = ray.GetPoint(distance);
 
-                // [VI] Di chuyển vật thể đang được cầm (Thuốc hoặc Xác) / [EN] Move the held object (Drug or Corpse)
                 if (draggedDrug != null)
                 {
                     draggedDrug.transform.position = Vector3.Lerp(draggedDrug.transform.position, targetPoint, Time.deltaTime * dragSpeed);
@@ -159,58 +161,43 @@ namespace Portfolio.TriageManagement
 
         private void DropDrug()
         {
+            if (AudioManager.Instance != null) AudioManager.Instance.Play("grab");
+
             Ray ray = mainCam.ScreenPointToRay(Mouse.current.position.ReadValue());
-            Collider[] hitPatients = Physics.OverlapSphere(draggedDrug.transform.position, dropRadius, patientLayer);
+            RaycastHit hit;
 
-            if (hitPatients.Length > 0)
+            if (Physics.Raycast(ray, out hit, 100f, patientLayer))
             {
-                Triage_PatientBiology closestPatient = null;
-                float minDistance = float.MaxValue;
+                Triage_PatientBiology targetPatient = hit.collider.GetComponentInParent<Triage_PatientBiology>();
 
-                foreach (Collider hit in hitPatients)
+                if (targetPatient != null)
                 {
-                    float distance = Vector3.Distance(draggedDrug.transform.position, hit.transform.position);
-                    if (distance < minDistance)
-                    {
-                        minDistance = distance;
-                        closestPatient = hit.GetComponent<Triage_PatientBiology>();
-                    }
-                }
-
-                if (closestPatient != null)
-                {
-                    // [VI] KIỂM TRA VÀ TRỪ TIỀN NGAY TRƯỚC KHI TIÊM THUỐC
-                    // [EN] CHECK AND DEDUCT MONEY RIGHT BEFORE ADMINISTERING DRUG
                     if (Triage_GameManager.Instance.SpendGold(draggedDrug.cost))
                     {
-                        closestPatient.AdministerDrug(draggedDrug.drugType);
+                        targetPatient.AdministerDrug(draggedDrug.drugType);
+                        Debug.Log("Đã tiêm thuốc thành công cho: " + targetPatient.name);
                     }
                     else
                     {
                         Debug.Log("Not enough gold to use this drug!");
-                        // [VI] Bạn có thể thêm UI chớp đỏ hoặc âm thanh báo lỗi ở đây
-                        // [EN] You can add a flashing red UI or an error sound here
                     }
                 }
             }
 
-            // [VI] Dù tiêm thành công, không đủ tiền, hay thả ra ngoài không khí thì cũng hủy viên thuốc đang cầm trên tay đi
-            // [EN] Whether successful, insufficient funds, or dropped in thin air, destroy the dragged drug
             Destroy(draggedDrug.gameObject);
             draggedDrug = null;
         }
 
         private void DropCorpse()
         {
-            // [VI] TRẢ LẠI VẬT LÝ: Bật lại trọng lực để xác rớt uỵch xuống góc phòng
-            // [EN] RETURN PHYSICS: Re-enable gravity so the corpse thuds down into the room corner
-            draggedCorpse.isKinematic = false;
+            if (AudioManager.Instance != null) AudioManager.Instance.Play("grab");
 
-            // [VI] Thêm một lực ném nhỏ để tạo cảm giác "vứt" đi cho đã tay
-            // [EN] Add a small throw force to create a satisfying "tossing" feel
-            draggedCorpse.AddForce(UnityEngine.Camera.main.transform.forward * 5f, ForceMode.Impulse);
-
-            draggedCorpse = null;
+            if (draggedCorpse != null)
+            {
+                draggedCorpse.isKinematic = false;
+                draggedCorpse.AddForce(UnityEngine.Camera.main.transform.forward * 5f, ForceMode.Impulse);
+                draggedCorpse = null;
+            }
         }
 
         private void OnDrawGizmosSelected()
@@ -221,13 +208,12 @@ namespace Portfolio.TriageManagement
                 Gizmos.DrawSphere(draggedDrug.transform.position, dropRadius);
             }
         }
-        // [VI] VIẾT THÊM HÀM MỚI NÀY VÀO TRONG SCRIPT / [EN] ADD THIS NEW FUNCTION INTO THE SCRIPT
+
         private void HandleTooltipHover()
         {
-            // [VI] Nếu đang cầm đồ (kéo thả) thì ẩn hết Tooltip cho đỡ rối mắt
-            // [EN] If holding an object (dragging), hide all Tooltips to reduce clutter
             if (draggedDrug != null || draggedCorpse != null)
             {
+                currentHoverTarget = null;
                 Triage_SymptomUI.Instance.HideUI();
                 return;
             }
@@ -235,50 +221,82 @@ namespace Portfolio.TriageManagement
             Ray ray = mainCam.ScreenPointToRay(Mouse.current.position.ReadValue());
             RaycastHit hit;
 
-            // [VI] 1. Quét trúng Bệnh nhân / [EN] 1. Raycast hits Patient
-            if (Physics.Raycast(ray, out hit, 100f, patientLayer))
+            LayerMask interactableLayers = patientLayer | drugLayer | staffLayer | buttonLayer | corpseLayer;
+
+            if (Physics.Raycast(ray, out hit, 100f, interactableLayers))
             {
-                Triage_PatientBiology patient = hit.collider.GetComponent<Triage_PatientBiology>();
-                if (patient != null)
+                Transform hitTransform = hit.collider.transform;
+
+                // ==========================================
+                // [VI] Lấy Transform cao nhất để tránh trùng lặp giữa các bộ phận cơ thể
+                // [EN] Get the root Transform to avoid duplication between body parts
+                // ==========================================
+                Transform rootTransform = hitTransform.root;
+
+                bool isValidTarget = false;
+
+                if (((1 << hitTransform.gameObject.layer) & patientLayer) != 0)
                 {
-                    Triage_SymptomUI.Instance.ShowPatientUI(patient);
-                    return; // [VI] Dừng ở đây để không hiện đè cái khác / [EN] Stop here to avoid overlapping
+                    Triage_PatientBiology patient = hitTransform.GetComponentInParent<Triage_PatientBiology>();
+                    if (patient != null)
+                    {
+                        isValidTarget = true;
+                        Triage_SymptomUI.Instance.ShowPatientUI(patient);
+                    }
+                }
+                else if (((1 << hitTransform.gameObject.layer) & drugLayer) != 0)
+                {
+                    Triage_DrugItem drug = hitTransform.GetComponentInParent<Triage_DrugItem>();
+                    if (drug != null)
+                    {
+                        isValidTarget = true;
+                        Triage_SymptomUI.Instance.ShowDrugUI(drug.drugType.ToString(), drug.cost, "Cures specific symptoms.");
+                    }
+                }
+                else if (((1 << hitTransform.gameObject.layer) & staffLayer) != 0)
+                {
+                    Triage_StaffController staff = hitTransform.GetComponentInParent<Triage_StaffController>();
+                    if (staff != null)
+                    {
+                        isValidTarget = true;
+                        Triage_SymptomUI.Instance.ShowStaffUI(10f, staff.errorRate);
+                    }
+                }
+                else if (((1 << hitTransform.gameObject.layer) & buttonLayer) != 0)
+                {
+                    Triage_WorldButton btn = hitTransform.GetComponentInParent<Triage_WorldButton>();
+                    if (btn != null) isValidTarget = true;
+                }
+                else if (((1 << hitTransform.gameObject.layer) & corpseLayer) != 0)
+                {
+                    isValidTarget = true;
+                }
+
+                // ==========================================
+                // [VI] Nếu mục tiêu hợp lệ VÀ khác với mục tiêu frame trước -> Phát âm thanh
+                // [EN] If target is valid AND different from previous frame target -> Play sound
+                // ==========================================
+                if (isValidTarget)
+                {
+                    if (currentHoverTarget != rootTransform)
+                    {
+                        currentHoverTarget = rootTransform;
+                        if (AudioManager.Instance != null) AudioManager.Instance.Play("popup");
+                    }
+                }
+                else
+                {
+                    // [VI] Xử lý lỗi trúng vật thể có layer nhưng thiếu script
+                    // [EN] Handle error of hitting object with layer but missing script
+                    currentHoverTarget = null;
+                    Triage_SymptomUI.Instance.HideUI();
                 }
             }
-
-            // [VI] 2. Quét trúng Thuốc / [EN] 2. Raycast hits Drug
-            if (Physics.Raycast(ray, out hit, 100f, drugLayer))
+            else
             {
-                Triage_DrugItem drug = hit.collider.GetComponent<Triage_DrugItem>();
-                if (drug != null)
-                {
-                    // [VI] Gọi tên thuốc, giá tiền, và (tùy chọn) tự thêm mô tả
-                    // [EN] Call drug name, price, and (optionally) add description
-                    Triage_SymptomUI.Instance.ShowDrugUI(
-                        drug.drugType.ToString(), // Chuyển ENUM thành chữ (VD: "Adrenaline")
-                        drug.cost,
-                        "Cures specific symptoms." // Bạn có thể thêm biến string description vào script Triage_DrugItem sau
-                    );
-                    return;
-                }
+                currentHoverTarget = null;
+                Triage_SymptomUI.Instance.HideUI();
             }
-
-            // [VI] Thêm đoạn kiểm tra tia Raycast trúng Staff vào HandleTooltipHover
-            // [EN] Add the Staff Raycast check into HandleTooltipHover
-            if (Physics.Raycast(ray, out hit, 100f, staffLayer))
-            {
-                Triage_StaffController staff = hit.collider.GetComponent<Triage_StaffController>();
-                if (staff != null)
-                {
-                    // [VI] Truyền mức lương và tỷ lệ sai sót vào / [EN] Pass wage and error rate
-                    Triage_SymptomUI.Instance.ShowStaffUI(10f, staff.errorRate);
-                    return;
-                }
-            }
-
-            // [VI] 3. Không trúng gì cả -> Tắt Tooltip
-            // [EN] 3. Hit nothing -> Hide Tooltip
-            Triage_SymptomUI.Instance.HideUI();
         }
     }
 }

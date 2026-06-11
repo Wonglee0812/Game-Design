@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
-using UnityEngine.UI; // [VI] Bắt buộc phải có để dùng Slider / [EN] Required to use Slider
-using TMPro; // [VI] Bắt buộc phải có để dùng TextMeshPro / [EN] Required to use TextMeshPro
+using UnityEngine.UI;
+using TMPro;
 
 namespace Portfolio.TriageManagement
 {
@@ -13,16 +13,16 @@ namespace Portfolio.TriageManagement
         public int currentReputation = 50;
 
         [Header("Passive Income (Lifesaver)")]
-        public float incomeInterval = 5f; // [VI] 5 giây cộng tiền 1 lần / [EN] Add gold once every 5 seconds
+        public float incomeInterval = 5f;
         private float incomeTimer = 0f;
 
         [Header("Win Condition")]
-        public float levelDuration = 120f; // [VI] 120 giây (2 phút) / [EN] 120 seconds (2 minutes)
+        public float levelDuration = 120f;
         private float timeRemaining;
 
         [Header("Resource UI Settings")]
-        [SerializeField] private float maxGold = 500f; // [VI] Giới hạn thanh Tiền / [EN] Gold slider limit
-        [SerializeField] private float maxReputation = 100f; // [VI] Giới hạn thanh Hảo cảm / [EN] Reputation slider limit
+        [SerializeField] private float maxGold = 500f;
+        [SerializeField] private float maxReputation = 100f;
 
         [Header("UI References")]
         [SerializeField] private Slider goldSlider;
@@ -31,6 +31,7 @@ namespace Portfolio.TriageManagement
         [SerializeField] private TextMeshProUGUI reputationText;
         [SerializeField] private TextMeshProUGUI timerText;
         private int staffCount = 0;
+
         [Header("Staff Settings")]
         public GameObject staffPrefab;
         public Transform staffSpawnPoint;
@@ -39,7 +40,7 @@ namespace Portfolio.TriageManagement
         public float wageIntervalSeconds = 10f;
 
         public GameObject gameOverPanel;
-        public GameObject winPanel; // [VI] Kéo UI Chiến Thắng vào đây / [EN] Drag Victory UI here
+        public GameObject winPanel;
 
         public bool IsGameOver { get; private set; } = false;
 
@@ -48,14 +49,11 @@ namespace Portfolio.TriageManagement
             if (Instance == null) Instance = this;
             else Destroy(gameObject);
 
-            // [VI] Gán thời gian bắt đầu / [EN] Set starting time
             timeRemaining = levelDuration;
         }
 
         private void Start()
         {
-            // [VI] Thiết lập giới hạn tối đa cho Slider khi bắt đầu game
-            // [EN] Set maximum limits for Sliders when the game starts
             InvokeRepeating(nameof(PayStaffWages), wageIntervalSeconds, wageIntervalSeconds);
             if (goldSlider != null) goldSlider.maxValue = maxGold;
             if (reputationSlider != null) reputationSlider.maxValue = maxReputation;
@@ -84,16 +82,17 @@ namespace Portfolio.TriageManagement
             incomeTimer += Time.deltaTime;
             if (incomeTimer >= incomeInterval)
             {
-                // [VI] Công thức: Lấy Hảo cảm chia 20. (VD: 100/20 = 5 vàng, 50/20 = 2 vàng).
-                // [EN] Formula: Divide Reputation by 20. (Ex: 100/20 = 5 gold, 50/20 = 2 gold).
                 int bonusGold = Mathf.FloorToInt(currentReputation / 20f);
                 if (bonusGold > 0)
                 {
                     currentGold += bonusGold;
                     UpdateResourceUI();
-                }
 
-                // [VI] Reset bộ đếm / [EN] Reset timer
+                    // ==========================================
+                    // [VI] ÂM THANH: CỘNG TIỀN THEO THỜI GIAN / [EN] AUDIO: PASSIVE INCOME ADDED
+                    // ==========================================
+                    if (AudioManager.Instance != null) AudioManager.Instance.Play("money");
+                }
                 incomeTimer = 0f;
             }
         }
@@ -113,8 +112,6 @@ namespace Portfolio.TriageManagement
             if (goldText != null) goldText.text = "Gold: " + Mathf.FloorToInt(currentGold).ToString();
             if (reputationText != null) reputationText.text = "Reputation: " + currentReputation.ToString();
 
-            // [VI] Cập nhật đồng hồ theo định dạng Phút:Giây (VD: 01:59)
-            // [EN] Update timer in Minute:Second format (Ex: 01:59)
             if (timerText != null)
             {
                 int minutes = Mathf.FloorToInt(timeRemaining / 60);
@@ -131,7 +128,7 @@ namespace Portfolio.TriageManagement
             }
         }
 
-        private void PayStaffWages() // <--- Hàm này được gọi bởi InvokeRepeating ở trên / This function is called by InvokeRepeating above
+        private void PayStaffWages()
         {
             if (staffCount > 0)
             {
@@ -149,6 +146,11 @@ namespace Portfolio.TriageManagement
             currentGold += goldReward;
             currentReputation = Mathf.Min(currentReputation + repReward, 100);
             UpdateResourceUI();
+
+            // ==========================================
+            // [VI] ÂM THANH: NHẬN TIỀN THƯỞNG / [EN] AUDIO: RECEIVE REWARD MONEY
+            // ==========================================
+            if (AudioManager.Instance != null) AudioManager.Instance.Play("money");
         }
 
         public void OnPatientDied(int repPenalty)
@@ -166,6 +168,12 @@ namespace Portfolio.TriageManagement
             {
                 currentGold -= amount;
                 UpdateResourceUI();
+
+                // ==========================================
+                // [VI] ÂM THANH: TRỪ TIỀN MUA SẮM / [EN] AUDIO: SPEND MONEY
+                // ==========================================
+                if (AudioManager.Instance != null) AudioManager.Instance.Play("money");
+
                 return true;
             }
             return false;

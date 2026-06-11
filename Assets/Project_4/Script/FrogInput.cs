@@ -54,7 +54,18 @@ public class FrogInput : MonoBehaviour
 
     private void GetLookInput()
     {
-        if (playerCamera != null) playerCamera.SetLookInput(lookAction.ReadValue<Vector2>());
+        if (playerCamera != null)
+        {
+            Vector2 lookValue = lookAction.ReadValue<Vector2>();
+
+            bool isGamepad = false;
+            if (lookAction.activeControl != null)
+            {
+                isGamepad = lookAction.activeControl.device is Gamepad;
+            }
+
+            playerCamera.SetLookInput(lookValue, isGamepad);
+        }
     }
 
     private void GetMoveInput()

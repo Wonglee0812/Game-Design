@@ -16,9 +16,29 @@ namespace Portfolio.TriageManagement
         [Header("Wander Settings")]
         public float wanderInterval = 3f;
 
+        // ==========================================
+        // [VI] CẤU HÌNH COLLIDER KHI CHẾT
+        // [EN] DEATH COLLIDER CONFIGURATION
+        // ==========================================
+        [Header("Death Physics")]
+        [Tooltip("Kéo CapsuleCollider (đứng) vào đây / Drag standing CapsuleCollider here")]
+        public Collider standingCollider;
+
+        [Tooltip("Kéo BoxCollider/Capsule (nằm) vào đây / Drag lying BoxCollider/Capsule here")]
+        public Collider corpseCollider;
+
+        [Header("Audio Settings")]
+        [Range(0f, 100f)] public float walkSoundChance = 30f;
+        public float minVillageSoundInterval = 8f;
+        public float maxVillageSoundInterval = 20f;
+
+        private float villageSoundTimer = 0f;
+        private float currentVillageSoundTarget = 0f;
+
         private NavMeshAgent agent;
         private Rigidbody rb;
         private float timer;
+        private Animator animator;
 
         private bool isPausedByPlayer = false;
         public bool isBeingTreated = false;
@@ -26,6 +46,14 @@ namespace Portfolio.TriageManagement
         private void Awake()
         {
             agent = GetComponent<NavMeshAgent>();
+            animator = GetComponent<Animator>();
+
+            // [VI] Tự động tìm collider đứng nếu chưa gắn / [EN] Auto-find standing collider if not assigned
+            if (standingCollider == null) standingCollider = GetComponent<CapsuleCollider>();
+
+            // [VI] Corpse collider PHẢI được kéo tay vào Inspector
+            // [EN] Corpse collider MUST be manually assigned in the Inspector
+
             if (waitingZone == null)
             {
                 GameObject zoneObj = GameObject.FindWithTag("WaitingZone");
@@ -37,25 +65,41 @@ namespace Portfolio.TriageManagement
                 if (exitObj != null) exitPoint = exitObj.transform;
             }
             timer = wanderInterval;
+
+            currentVillageSoundTarget = Random.Range(minVillageSoundInterval, maxVillageSoundInterval);
         }
 
         private void Update()
         {
-            if (currentState == MovementState.Dead) return;
+            if (currentState == MovementState.Dead)
+            {
+                if (animator != null) animator.SetBool("isWalk", false);
+                return;
+            }
+
+            UpdateAnimationState();
 
             if (currentState == MovementState.Waiting)
             {
                 HandleWandering();
+                HandleVillageSound();
             }
             else if (currentState == MovementState.Leaving)
             {
-                // [VI] ÉP BUỘC ĐI VỀ CỬA: Luôn mở khóa và kiểm tra điểm đến liên tục
-                // [EN] FORCE GOING TO EXIT: Always unlock and continuously check destination
                 if (agent.isOnNavMesh && exitPoint != null)
                 {
-                    agent.isStopped = false; // [VI] Đảm bảo không bị dính phanh / [EN] Ensure no brake is stuck
+                    agent.isStopped = false;
                 }
                 CheckExitReached();
+            }
+        }
+
+        private void UpdateAnimationState()
+        {
+            if (animator != null && agent.isOnNavMesh)
+            {
+                bool isWalking = agent.velocity.sqrMagnitude > 0.1f && !agent.isStopped;
+                animator.SetBool("isWalk", isWalking);
             }
         }
 
@@ -75,6 +119,18 @@ namespace Portfolio.TriageManagement
             }
         }
 
+        private void HandleVillageSound()
+        {
+            villageSoundTimer += Time.deltaTime;
+            if (villageSoundTimer >= currentVillageSoundTarget)
+            {
+                if (AudioManager.Instance != null) AudioManager.Instance.Play("village");
+
+                villageSoundTimer = 0f;
+                currentVillageSoundTarget = Random.Range(minVillageSoundInterval, maxVillageSoundInterval);
+            }
+        }
+
         private Vector3 GetRandomPointInBounds(Bounds bounds)
         {
             return new Vector3(
@@ -84,13 +140,8 @@ namespace Portfolio.TriageManagement
             );
         }
 
-        // --- TƯƠNG TÁC CHUỘT ĐÃ ĐƯỢC BẢO VỆ CHẶT CHẼ HƠN ---
-        // --- MOUSE INTERACTION IS NOW STRICTLY PROTECTED ---
-
         private void OnMouseEnter()
         {
-            // [VI] Chỉ cho phép ngó thông tin nếu bệnh nhân đang ở trạng thái Chờ
-            // [EN] Only allow peeking at info if the patient is in the Waiting state
             if (currentState != MovementState.Waiting) return;
 
             isPausedByPlayer = true;
@@ -103,8 +154,6 @@ namespace Portfolio.TriageManagement
 
             isPausedByPlayer = false;
 
-            // [VI] QUAN TRỌNG: Nếu đang bị bác sĩ khám thì rút chuột ra vẫn phải đứng im!
-            // [EN] IMPORTANT: If being examined by a doctor, withdrawing the mouse must still keep them stopped!
             if (agent.isOnNavMesh && !isBeingTreated)
             {
                 agent.isStopped = false;
@@ -125,11 +174,22 @@ namespace Portfolio.TriageManagement
             isPausedByPlayer = false;
             isBeingTreated = false;
 
-            if (agent.isOnNavMesh && exitPoint != null)
+            if (animator != null) animator.SetTrigger("isCure");
+
+            if (exitPoint == null)
+            {
+                Debug.LogError("LỖI NGHIÊM TRỌNG: Bệnh nhân không biết cửa ra ở đâu (ExitPoint đang bị NULL)!");
+                return;
+            }
+
+            if (agent.isOnNavMesh)
             {
                 agent.isStopped = false;
+                agent.ResetPath();
                 agent.speed += 2f;
+
                 agent.SetDestination(exitPoint.position);
+                Debug.Log("Bệnh nhân đã nhận lệnh đi về cửa thành công!");
             }
         }
 
@@ -144,10 +204,18 @@ namespace Portfolio.TriageManagement
             }
         }
 
+        // =========================================================================
+        // [VI] CẬP NHẬT HÀM XỬ LÝ KHI CHẾT / [EN] UPDATED DEATH HANDLING FUNCTION
+        // =========================================================================
         public void BecomeCorpse()
         {
             currentState = MovementState.Dead;
             agent.enabled = false;
+
+            if (animator != null) animator.SetTrigger("isDie");
+
+            if (standingCollider != null) standingCollider.enabled = false;
+            if (corpseCollider != null) corpseCollider.enabled = true;
 
             rb = gameObject.GetComponent<Rigidbody>();
             if (rb == null) rb = gameObject.AddComponent<Rigidbody>();
@@ -159,8 +227,28 @@ namespace Portfolio.TriageManagement
             rb.AddForce(pushForce, ForceMode.Impulse);
             rb.AddTorque(new Vector3(Random.Range(-50f, 50f), 0, Random.Range(-50f, 50f)));
 
+            // ==========================================
+            // [VI] FIX: Đổi Layer cho cả Parent LẪN cái Collider đang nằm dưới đất
+            // [EN] FIX: Change Layer for BOTH the Parent AND the Collider lying on the ground
+            // ==========================================
             gameObject.layer = LayerMask.NameToLayer("Corpse");
+            if (corpseCollider != null)
+            {
+                corpseCollider.gameObject.layer = LayerMask.NameToLayer("Corpse");
+            }
+
             Triage_SymptomUI.Instance?.HideUI();
+        }
+
+        public void PlayWalkSound()
+        {
+            if (currentState == MovementState.Dead) return;
+
+            float roll = Random.Range(0f, 100f);
+            if (roll <= walkSoundChance)
+            {
+                if (AudioManager.Instance != null) AudioManager.Instance.Play("walk");
+            }
         }
     }
 }

@@ -1,10 +1,14 @@
 ﻿using UnityEngine;
+using System.Collections.Generic;
 
 namespace Portfolio.TriageManagement
 {
     public class Triage_PatientBiology : MonoBehaviour
     {
         [Header("Disease Configuration")]
+        public List<Triage_DiseaseData> possibleDiseases;
+
+        [HideInInspector]
         public Triage_DiseaseData currentDisease;
 
         [Header("Vital Signs")]
@@ -21,20 +25,24 @@ namespace Portfolio.TriageManagement
         private bool isDead = false;
         private bool isCured = false;
 
-        // [VI] Biến mới: Kiểm soát xem bệnh đã bắt đầu phát tác chưa
-        // [EN] New variable: Controls whether the disease has started acting up
         private bool isDiseaseActive = false;
 
-        // [VI] Hàm public để Movement Script gọi khi đi vào Vùng Chờ
-        // [EN] Public function for Movement Script to call when entering the Waiting Zone
+        private void Start()
+        {
+            if (possibleDiseases != null && possibleDiseases.Count > 0)
+            {
+                int randomIndex = Random.Range(0, possibleDiseases.Count);
+                currentDisease = possibleDiseases[randomIndex];
+            }
+        }
+
         public void StartDisease()
         {
             isDiseaseActive = true;
         }
+
         private void Update()
         {
-            // [VI] Chặn không cho trừ máu nếu bệnh chưa phát tác
-            // [EN] Block health drain if the disease is not yet active
             if (isDead || isCured || !isDiseaseActive) return;
 
             UpdateVitals();
@@ -71,7 +79,6 @@ namespace Portfolio.TriageManagement
         }
 
         public bool IsCritical() => criticalTimer > 0f;
-        // [VI] Trong script Triage_PatientBiology.cs / [EN] In script Triage_PatientBiology.cs
 
         public void AdministerDrug(DrugType appliedDrug)
         {
@@ -83,8 +90,6 @@ namespace Portfolio.TriageManagement
             }
             else
             {
-                // [VI] SAI THUỐC -> ĐỘT TỬ NGAY LẬP TỨC (Bỏ qua thời gian ân hạn)
-                // [EN] WRONG DRUG -> INSTANT SUDDEN DEATH (Bypass grace period)
                 Debug.Log("Wrong Drug! Patient suffered Anaphylactic Shock!");
                 Die();
             }
@@ -92,12 +97,15 @@ namespace Portfolio.TriageManagement
 
         private void Die()
         {
-            if (isDead) return; // [VI] Tránh gọi nhiều lần / [EN] Prevent multiple calls
+            if (isDead) return;
             isDead = true;
 
-            // [VI] Phạt 10 Hảo cảm khi có người chết / [EN] Deduct 10 Reputation on death
-            Triage_GameManager.Instance?.OnPatientDied(punishment);
+            // ==========================================
+            // [VI] ÂM THANH: BỆNH NHÂN CHẾT / [EN] AUDIO: PATIENT DEATH
+            // ==========================================
+            if (AudioManager.Instance != null) AudioManager.Instance.Play("pain");
 
+            Triage_GameManager.Instance?.OnPatientDied(punishment);
             GetComponent<Triage_PatientMovement>()?.BecomeCorpse();
         }
 
@@ -106,9 +114,12 @@ namespace Portfolio.TriageManagement
             if (isCured) return;
             isCured = true;
 
-            // [VI] Thưởng 20 Vàng và 5 Hảo cảm / [EN] Reward 20 Gold and 5 Reputation
-            Triage_GameManager.Instance?.OnPatientCured(reward, reputation);
+            // ==========================================
+            // [VI] ÂM THANH: CHỮA KHỎI / [EN] AUDIO: CURED
+            // ==========================================
+            if (AudioManager.Instance != null) AudioManager.Instance.Play("ping");
 
+            Triage_GameManager.Instance?.OnPatientCured(reward, reputation);
             GetComponent<Triage_PatientMovement>()?.GoToExit();
         }
     }

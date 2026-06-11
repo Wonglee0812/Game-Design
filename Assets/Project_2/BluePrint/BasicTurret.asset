@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4af990004690e0645a4f9a90d4d484b1, type: 3}
+  m_Name: BasicTurret
+  m_EditorClassIdentifier: Assembly-CSharp::TurretBluePrint
+  turretName: BasicTurrt
+  prefab: {fileID: 6013897655750324123, guid: 351d7a749d88e7f47bf7bc43380deb09, type: 3}
+  cost: 10

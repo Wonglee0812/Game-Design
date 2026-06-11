@@ -7,8 +7,12 @@ TagManager:
   - Enemy
   - Ground
   - Grappleable
-  - WaitingZone
+  - FrogInteractable
+  - WhiteGround
+  - BlackGround
+  - PlayerTrail
   - ExitPoint
+  - WaitingZone
   - Drug
   layers:
   - Default
@@ -21,14 +25,14 @@ TagManager:
   - Crowd
   - Player
   - Fire
-  - Patient
+  - Frog
   - Drug
-  - ExitPoint
-  - WaitingZone
   - Corpse
-  - Metal
+  - Patient
   - Staff
-  - WorldButton
+  - Button
+  - 
+  - 
   - 
   - 
   - 

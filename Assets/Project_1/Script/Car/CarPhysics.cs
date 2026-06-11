@@ -50,6 +50,12 @@ public class CarPhysics : MonoBehaviour
     [SerializeField] private float ramTierStep = 3f;
     [SerializeField] private float speedBoostPerTier = 2f;  
     [SerializeField] private float massShiftPerTier = -0.04f;
+    [HideInInspector] public PlayerInput lastAttacker;
+    [HideInInspector] public float lastAttackTime;
+    [Header("Audio Settings")]
+    [SerializeField] private AudioSource engineAudioSource; // [VI] Kéo AudioSource chứa clip 'accel' vào đây / [EN] Drag the AudioSource with the 'accel' clip here
+    [SerializeField] private float minEnginePitch = 0.8f;
+    [SerializeField] private float maxEnginePitch = 2f;
     private float count;
     public RamTier CurrentTier;
     private float baseMaxSpeed;
@@ -72,7 +78,7 @@ public class CarPhysics : MonoBehaviour
     private void Update()
     {
         ApplyTurn();
-        Debug.Log(CurrentTier);
+        UpdateEngineSound();
     }
     private void FixedUpdate()
     {
@@ -312,17 +318,19 @@ public class CarPhysics : MonoBehaviour
     {
         Vector3 hitPosi = col.GetContact(0).point;
         Vector3 localPosi = transform.InverseTransformPoint(hitPosi);
-        Rigidbody rb = col.transform.GetComponent<Rigidbody>();
+        Rigidbody hitRb = col.transform.GetComponent<Rigidbody>();
 
         if(isRamEnabled && localPosi.z > 1f)
         {
-            if(rb)
+            if(hitRb)
             {
-                RamEnemy(rb, col);
-                if(CurrentTier >= RamTier.Tier_1) TriggerEnemyDamageVisual(rb);
+                RamEnemy(hitRb, col);
+                if (AudioManager.Instance != null) AudioManager.Instance.Play("impact");
+                if (CurrentTier >= RamTier.Tier_1) TriggerEnemyDamageVisual(hitRb);
                 if(CurrentTier >= RamTier.Tier_3)
                 {
                     VFXManager.Instance.PlayCollideEffect(hitPosi, 0.5f);
+                    if (AudioManager.Instance != null) AudioManager.Instance.Play("hardimpact");
 
                 }
                 Debug.Log("Enemy");
@@ -330,7 +338,8 @@ public class CarPhysics : MonoBehaviour
             else
             {
                 RamConstruction(1f);
-                if(CurrentTier >= RamTier.Tier_1) TriggerSelfDamageVisual();
+                if (AudioManager.Instance != null) AudioManager.Instance.Play("impact");
+                if (CurrentTier >= RamTier.Tier_1) TriggerSelfDamageVisual();
                 Debug.Log("Construct");
 
             }
@@ -345,35 +354,39 @@ public class CarPhysics : MonoBehaviour
 
     private void RamEnemy(Rigidbody rg, Collision col)
     {
+        // ==========================================
+        // [VI] LƯU LẠI THÔNG TIN NGƯỜI VỪA HÚC (Để tính điểm rớt đài)
+        // [EN] RECORD THE ATTACKER'S INFO (For knock-out scoring)
+        // ==========================================
+        PlayerInput attackerInput = GetComponent<PlayerInput>();
+        CarPhysics victimPhysics = rg.GetComponent<CarPhysics>();
+
+        if (attackerInput != null && victimPhysics != null)
+        {
+            victimPhysics.lastAttacker = attackerInput;
+            victimPhysics.lastAttackTime = Time.time;
+        }
+
         // [VI] 1. Tỷ lệ lợi thế khối lượng (Attacker / Defender)
-        // Dùng Clamp để xe nhỏ nhất không bị vô dụng (0.4x) và xe to nhất không quá lố (2.5x)
-        // [EN] 1. Mass advantage ratio (Attacker / Defender)
-        // Clamp so the smallest car isn't useless (0.4x) and the biggest isn't broken (2.5x)
         float massAdvantage = Mathf.Clamp(rb.mass / rg.mass, 0.4f, 2.5f);
 
         // [VI] 2. Hệ số Tier: Ép khoảng cách từ 5m (Tier 1) lên 20m (Tier 3)
-        // [EN] 2. Tier Multiplier: Force the distance from 5m (Tier 1) to 20m (Tier 3)
         float tierMultiplier = 1f;
         if (CurrentTier == RamTier.Tier_2) tierMultiplier = 2.5f;
         else if (CurrentTier == RamTier.Tier_3) tierMultiplier = 4.0f;
 
         // [VI] 3. Tính lực tổng: Động lượng (Mass * Speed) * Tier * Tỷ lệ khối lượng
-        // [EN] 3. Total Force: Momentum (Mass * Speed) * Tier * Mass Ratio
-        float baseMomentum = rb.mass * carSpeed * 0.5f; // Hằng số 0.5f để scale cho Impulse
+        float baseMomentum = rb.mass * carSpeed * 0.5f;
         float ramForce = baseMomentum * tierMultiplier * massAdvantage;
 
         // [VI] 4. Hướng hất: Thêm một chút lực đẩy lên trên (y = 0.2f) để xe bay đẹp hơn
-        // [EN] 4. Knockback direction: Add slight upward force (y = 0.2f) for better airtime
         Vector3 ramDir = (col.transform.position - transform.position).normalized;
         ramDir.y = 0.2f;
 
-        // [VI] Sử dụng ForceMode.Impulse cho tác động tức thời (chuẩn vật lý va chạm)
-        // [EN] Use ForceMode.Impulse for instant impact (accurate collision physics)
         rg.AddForce(ramDir * ramForce, ForceMode.Impulse);
         rg.AddTorque(UnityEngine.Random.insideUnitSphere * ramForce * 0.1f, ForceMode.Impulse);
 
         // [VI] 5. Phản lực cho xe tấn công (Recoil)
-        // [EN] 5. Recoil for the attacker
         float recoilPenalty = Mathf.Clamp(rg.mass / rb.mass, 0.5f, 2f);
         RamConstruction(recoilPenalty);
     }
@@ -390,7 +403,28 @@ public class CarPhysics : MonoBehaviour
         if (myVisual != null) myVisual.TakeVisualDamage();
     }
 
+    private void UpdateEngineSound()
+    {
+        if (engineAudioSource == null) return;
 
+        // [VI] Bật âm thanh nếu xe nhận input di chuyển và chưa phát nhạc
+        // [EN] Play sound if the car receives movement input and is not playing
+        if (!engineAudioSource.isPlaying && Mathf.Abs(moveDir.y) > 0.05f)
+        {
+            engineAudioSource.Play();
+        }
+        // [VI] Tắt âm thanh nếu xe dừng hoàn toàn
+        // [EN] Stop sound if the car is completely stopped
+        else if (engineAudioSource.isPlaying && Mathf.Abs(moveDir.y) <= 0.05f && Mathf.Abs(carSpeed) < 0.5f)
+        {
+            engineAudioSource.Stop();
+        }
+
+        // [VI] Chỉnh Pitch (độ gầm động cơ) mượt mà dựa trên tốc độ xe
+        // [EN] Smoothly adjust Pitch (engine roar) based on the car's speed
+        float speedRatio = Mathf.Clamp01(Mathf.Abs(carSpeed) / carMaxSpeed);
+        engineAudioSource.pitch = Mathf.Lerp(minEnginePitch, maxEnginePitch, speedRatio);
+    }
 
 
     /// <summary>
@@ -408,9 +442,6 @@ public class CarPhysics : MonoBehaviour
     {
         driftCall = driftValue;
     }    
-
-
-
 
     //Debug
     private void OnDrawGizmos()

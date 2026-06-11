@@ -16,12 +16,15 @@ namespace Portfolio.TriageManagement
         public GameObject selectionIndicator; // [VI] Vòng sáng dưới chân / [EN] Highlight circle under feet
 
         private NavMeshAgent agent;
+        private Animator animator; // [VI] Thêm tham chiếu Animator / [EN] Added Animator reference
         private Triage_PatientBiology targetPatient;
         private bool isTreating = false;
         public bool isAvailable { get; private set; } = true;
+
         private void Awake()
         {
             agent = GetComponent<NavMeshAgent>();
+            animator = GetComponent<Animator>(); // [VI] Lấy component Animator / [EN] Get Animator component
             SetSelected(false);
         }
 
@@ -59,6 +62,9 @@ namespace Portfolio.TriageManagement
 
         private void Update()
         {
+            // [VI] Liên tục cập nhật trạng thái đi bộ / [EN] Continuously update walking state
+            UpdateAnimationState();
+
             // [VI] Nếu có mục tiêu, chưa bắt đầu chữa, và đã đến nơi
             // [EN] If there is a target, hasn't started treating, and has arrived
             if (targetPatient != null && !isTreating)
@@ -70,10 +76,25 @@ namespace Portfolio.TriageManagement
             }
         }
 
+        private void UpdateAnimationState()
+        {
+            if (animator != null && agent.isOnNavMesh)
+            {
+                // [VI] Kiểm tra vận tốc thực tế để kích hoạt animation đi bộ
+                // [EN] Check actual velocity to trigger walking animation
+                bool isWalking = agent.velocity.sqrMagnitude > 0.1f && !agent.isStopped;
+                animator.SetBool("isWalk", isWalking);
+            }
+        }
+
         private IEnumerator TreatRoutine()
         {
             isTreating = true;
             agent.isStopped = true; // [VI] Đứng lại để chữa / [EN] Stop to treat
+
+            // [VI] Bật animation chữa bệnh / [EN] Turn on curing animation
+            if (animator != null) animator.SetBool("isCure", true);
+
             Triage_PatientMovement patientMovement = targetPatient.GetComponent<Triage_PatientMovement>();
             if (patientMovement != null)
             {
@@ -81,7 +102,11 @@ namespace Portfolio.TriageManagement
                 NavMeshAgent pAgent = targetPatient.GetComponent<NavMeshAgent>();
                 if (pAgent != null && pAgent.isOnNavMesh) pAgent.isStopped = true;
             }
+
             yield return new WaitForSeconds(treatmentTime);
+
+            // [VI] Tắt animation chữa bệnh sau khi hết thời gian / [EN] Turn off curing animation after time is up
+            if (animator != null) animator.SetBool("isCure", false);
 
             if (targetPatient != null)
             {
@@ -109,11 +134,11 @@ namespace Portfolio.TriageManagement
             targetPatient = null;
             isTreating = false;
             agent.isStopped = false; // [VI] Sẵn sàng đi tiếp / [EN] Ready to move again
+
             yield return new WaitForSeconds(cooldownTime);
 
             // [VI] Hết Cooldown mới được nhận lệnh tiếp / [EN] Only available for commands after Cooldown
             isAvailable = true;
-
         }
     }
 }

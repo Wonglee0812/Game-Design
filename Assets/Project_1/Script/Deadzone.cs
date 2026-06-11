@@ -8,15 +8,15 @@ public class Deadzone : MonoBehaviour
     {
         if (other.TryGetComponent<PlayerInput>(out var playerInput))
         {
-            if (GameManager_1.Instance != null)
+            if (KnockOut_GameManager.Instance != null)
             {
-                // Gọi hàm báo rơi xuống thay vì báo thua trực tiếp
-                // Call the falling function instead of instant lose
-                GameManager_1.Instance.OnPlayerFall(playerInput);
+                // [VI] Gọi hàm rớt đài của GameManager mới
+                // [EN] Call the falling function of the new GameManager
+                KnockOut_GameManager.Instance.OnPlayerFall(playerInput);
             }
             else
             {
-                Debug.LogError("Cảnh báo: Không tìm thấy GameManager_1 trong Scene!");
+                Debug.LogError("Cảnh báo: Không tìm thấy KnockOut_GameManager trong Scene!");
             }
         }
     }
